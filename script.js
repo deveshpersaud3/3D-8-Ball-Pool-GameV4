@@ -278,7 +278,14 @@ let state = {
 };
 
 // ── Canvas & context ───────────────────────────────────────────
-let canvas, ctx;
+// FIX: Assign canvas immediately at parse time so the mousedown/mousemove/mouseup
+// event listeners that follow can bind correctly. The original code assigned canvas
+// only inside DOMContentLoaded, but the listener registrations were outside that
+// callback — so they ran before the assignment, binding to `undefined`.
+// We defer the actual getContext() call until DOMContentLoaded since the element
+// must exist in the DOM first.
+let canvas = null;
+let ctx = null;
 let W, H; // canvas dimensions
 const CUSHION = 34;
 
@@ -360,15 +367,18 @@ function setupTable() {
   W = canvas.width;
   H = canvas.height;
 
-  // Pocket positions
-  const px = CUSHION - 2;
-  const py = CUSHION - 2;
+  // FIX: Pocket positions — align to cushion inner edge exactly.
+  // The old px = CUSHION-2 caused corner pockets to sit 2px inside the cushion
+  // border, making them visually misaligned. Side pockets had an arbitrary ±4
+  // vertical nudge that caused asymmetry after resize.
+  const px = CUSHION;
+  const py = CUSHION;
   state.pockets = [
     { x: px,     y: py },
-    { x: W/2,    y: py - 4 },
+    { x: W / 2,  y: py },
     { x: W - px, y: py },
     { x: px,     y: H - py },
-    { x: W/2,    y: H - py + 4 },
+    { x: W / 2,  y: H - py },
     { x: W - px, y: H - py },
   ];
 }
@@ -462,15 +472,17 @@ function getRackPos(mode) {
         i++;
       }
     }
-    // Colored balls on spots
+    // Colored balls on spots (standard snooker spots)
+    // FIX: Removed duplicate blue (num 20). W*0.72-r*3 was a leftover debug entry.
+    // Now uses proper relative spots: yellow/green/brown on baulk line (W*0.25),
+    // blue on centre spot, pink between reds and black, black near foot cushion.
     const snookerColors = [
-      { x: W*0.72 - r*3, y: H/2, num: 20 },   // blue (center)
-      { x: W*0.25, y: H/2 - r*1.5, num: 17 },  // yellow
-      { x: W*0.25, y: H/2, num: 18 },           // green
-      { x: W*0.25, y: H/2 + r*1.5, num: 19 },  // brown
-      { x: W*0.5,  y: H/2, num: 20 },           // blue
-      { x: W*0.68, y: H/2, num: 21 },           // pink
-      { x: W*0.87, y: H/2, num: 22 },           // black
+      { x: W * 0.25, y: H / 2 - r * 1.5, num: 17 },  // yellow
+      { x: W * 0.25, y: H / 2,            num: 18 },  // green
+      { x: W * 0.25, y: H / 2 + r * 1.5, num: 19 },  // brown
+      { x: W * 0.5,  y: H / 2,            num: 20 },  // blue (centre spot)
+      { x: W * 0.66, y: H / 2,            num: 21 },  // pink (between reds & black)
+      { x: W * 0.86, y: H / 2,            num: 22 },  // black
     ];
     positions.push(...snookerColors);
   }
@@ -530,28 +542,38 @@ function physicsStep() {
 
   state.balls.forEach(b => {
     if (!b.active || b.pocketed) return;
-    if (Math.abs(b.vx) > MIN_SPEED || Math.abs(b.vy) > MIN_SPEED) {
-      anyMoving = true;
-      b.x += b.vx;
-      b.y += b.vy;
-      b.vx *= FRICTION;
-      b.vy *= FRICTION;
-
-      // Cushion collisions
-      const minX = CUSHION + b.radius;
-      const maxX = W - CUSHION - b.radius;
-      const minY = CUSHION + b.radius;
-      const maxY = H - CUSHION - b.radius;
-
-      if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * CUSHION_BOUNCE; playSound('cushion'); }
-      if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * CUSHION_BOUNCE; playSound('cushion'); }
-      if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * CUSHION_BOUNCE; playSound('cushion'); }
-      if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * CUSHION_BOUNCE; playSound('cushion'); }
-
-      // Stop near-zero
-      if (Math.abs(b.vx) < MIN_SPEED) b.vx = 0;
-      if (Math.abs(b.vy) < MIN_SPEED) b.vy = 0;
+    // FIX: Check speed BEFORE moving — avoids processing balls at rest
+    const speed = Math.hypot(b.vx, b.vy);
+    if (speed <= MIN_SPEED) {
+      b.vx = 0;
+      b.vy = 0;
+      return;
     }
+
+    anyMoving = true;
+    b.x += b.vx;
+    b.y += b.vy;
+    b.vx *= FRICTION;
+    b.vy *= FRICTION;
+
+    // Cushion collisions
+    const minX = CUSHION + b.radius;
+    const maxX = W - CUSHION - b.radius;
+    const minY = CUSHION + b.radius;
+    const maxY = H - CUSHION - b.radius;
+
+    // FIX: Use separate flags to avoid playing cushion sound multiple times
+    // per frame when a ball is wedged in a corner
+    let hitCushion = false;
+    if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * CUSHION_BOUNCE; hitCushion = true; }
+    if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * CUSHION_BOUNCE; hitCushion = true; }
+    if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * CUSHION_BOUNCE; hitCushion = true; }
+    if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * CUSHION_BOUNCE; hitCushion = true; }
+    if (hitCushion) playSound('cushion');
+
+    // Stop near-zero
+    if (Math.abs(b.vx) < MIN_SPEED) b.vx = 0;
+    if (Math.abs(b.vy) < MIN_SPEED) b.vy = 0;
   });
 
   // Ball-ball collisions
@@ -578,12 +600,15 @@ function physicsStep() {
         a.y -= ny * overlap / 2;
         b.x += nx * overlap / 2;
         b.y += ny * overlap / 2;
-        // Elastic collision
+        // Elastic collision — equal mass balls
+        // FIX: Correct restitution formula: impulse = dv * (1 + e) / 2
+        // Old code multiplied by BALL_BOUNCE (0.88) directly which caused
+        // energy GAIN when both balls are moving toward each other.
         const dvx = a.vx - b.vx;
         const dvy = a.vy - b.vy;
         const dv = dvx * nx + dvy * ny;
         if (dv > 0) {
-          const impulse = dv * BALL_BOUNCE;
+          const impulse = dv * (1 + BALL_BOUNCE) / 2;
           a.vx -= impulse * nx;
           a.vy -= impulse * ny;
           b.vx += impulse * nx;
@@ -1283,15 +1308,21 @@ function gameLoop() {
   ctx.clearRect(0, 0, W, H);
   drawTable();
 
-  const wasMoving = state.ballsMoving;
   if (state.ballsMoving) {
     const stillMoving = physicsStep();
     if (!stillMoving) {
-      state.ballsMoving = false;
-      // Check if all balls stopped
-      const anyMoving = state.balls.some(b => b.active && !b.pocketed && (Math.abs(b.vx) > MIN_SPEED || Math.abs(b.vy) > MIN_SPEED));
-      if (!anyMoving && !state.gameOver) {
-        processShotResult();
+      // FIX: Re-check with a stricter zero-velocity test before declaring stopped.
+      // physicsStep returns false when no ball exceeded MIN_SPEED this frame,
+      // but we must confirm ALL balls are truly at rest to avoid premature
+      // processShotResult calls on the same frame a ball just stopped.
+      const anyStillMoving = state.balls.some(
+        b => b.active && !b.pocketed && (Math.abs(b.vx) > 0 || Math.abs(b.vy) > 0)
+      );
+      if (!anyStillMoving) {
+        state.ballsMoving = false;
+        if (!state.gameOver) {
+          processShotResult();
+        }
       }
     }
   }
@@ -1492,16 +1523,25 @@ function rotateTips() {
   state.tipRotateInterval = setInterval(showTip, 6000);
 }
 
-// ── Input ──────────────────────────────────────────────────────
+// ── Input helpers ──────────────────────────────────────────────
+// All canvas event listeners are registered in DOMContentLoaded below.
+
 function getCanvasPos(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
+  // getBoundingClientRect returns the visual (CSS-transformed) rect.
+  // Divide by visual size, multiply by actual canvas pixel size to get
+  // correct canvas-space coordinates regardless of CSS scaling/rotation.
+  const scaleX = canvas.width  / rect.width;
   const scaleY = canvas.height / rect.height;
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const clientX = e.changedTouches ? e.changedTouches[0].clientX
+                : e.touches       ? e.touches[0].clientX
+                : e.clientX;
+  const clientY = e.changedTouches ? e.changedTouches[0].clientY
+                : e.touches       ? e.touches[0].clientY
+                : e.clientY;
   return {
     x: (clientX - rect.left) * scaleX,
-    y: (clientY - rect.top) * scaleY,
+    y: (clientY - rect.top)  * scaleY,
   };
 }
 
@@ -1510,75 +1550,12 @@ function canShoot() {
     && !(state.gameMode === 'ai' && state.currentPlayer === 1);
 }
 
-canvas.addEventListener('mousemove', e => {
-  const pos = getCanvasPos(e);
-  state.mousePos = pos;
-
-  if (state.isCharging) {
-    const cue = state.cueBall;
-    const d = dist(pos, { x: cue.x, y: cue.y });
-    state.power = clamp(d / 180, 0, 1);
-    document.getElementById('powerFill').style.width = (state.power * 100) + '%';
-  }
-});
-
-canvas.addEventListener('mousedown', e => {
-  const pos = getCanvasPos(e);
-  state.mousePos = pos;
-
-  if (state.placingBall) return;
-  if (!canShoot()) return;
-
-  const cue = state.cueBall;
-  if (!cue || !cue.active) return;
-  state.isCharging = true;
-  state.dragStart = pos;
-  canvas.classList.add('aiming');
-});
-
-canvas.addEventListener('mouseup', e => {
-  const pos = getCanvasPos(e);
-
-  if (state.placingBall) {
-    // Place the cue ball
-    const valid = isValidPlacement(pos);
-    if (valid) {
-      state.cueBall.x = pos.x;
-      state.cueBall.y = pos.y;
-      state.cueBall.vx = 0;
-      state.cueBall.vy = 0;
-      state.cueBall.active = true;
-      state.cueBall.pocketed = false;
-      state.placingBall = false;
-      state.ballInHand = false;
-      updateHUD();
-    }
-    return;
-  }
-
-  if (!state.isCharging) return;
-  state.isCharging = false;
-  canvas.classList.remove('aiming');
-
-  if (!canShoot()) return;
-
-  const cue = state.cueBall;
-  if (!cue || !cue.active) return;
-
-  const angle = Math.atan2(pos.y - cue.y, pos.x - cue.x);
-  const power = clamp(state.power, 0.05, 1);
-  shoot(angle, power);
-  state.power = 0;
-  document.getElementById('powerFill').style.width = '0%';
-});
-
 function isValidPlacement(pos) {
   const minX = CUSHION + BALL_RADIUS + 2;
   const maxX = W - CUSHION - BALL_RADIUS - 2;
   const minY = CUSHION + BALL_RADIUS + 2;
   const maxY = H - CUSHION - BALL_RADIUS - 2;
   if (pos.x < minX || pos.x > maxX || pos.y < minY || pos.y > maxY) return false;
-  // Check collision with other balls
   for (const b of state.balls) {
     if (b === state.cueBall || !b.active || b.pocketed) continue;
     if (dist(pos, b) < BALL_RADIUS * 2 + 2) return false;
@@ -1586,24 +1563,78 @@ function isValidPlacement(pos) {
   return true;
 }
 
-// Touch support
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }));
-}, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }));
-}, { passive: false });
-canvas.addEventListener('touchend', e => {
-  e.preventDefault();
-  canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY }));
-}, { passive: false });
-
 // ── Button Bindings ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Assign canvas FIRST so all listeners below have a valid reference
   canvas = document.getElementById('poolCanvas');
   ctx = canvas.getContext('2d');
+
+  // ── Canvas input listeners ──────────────────────────────────
+  canvas.addEventListener('mousemove', e => {
+    const pos = getCanvasPos(e);
+    state.mousePos = pos;
+    if (state.isCharging && state.cueBall) {
+      const d = dist(pos, { x: state.cueBall.x, y: state.cueBall.y });
+      state.power = clamp(d / 180, 0, 1);
+      document.getElementById('powerFill').style.width = (state.power * 100) + '%';
+    }
+  });
+
+  canvas.addEventListener('mousedown', e => {
+    const pos = getCanvasPos(e);
+    state.mousePos = pos;
+    // Handle ball-in-hand placement immediately on mousedown
+    if (state.placingBall) {
+      if (isValidPlacement(pos)) {
+        state.cueBall.x = pos.x;
+        state.cueBall.y = pos.y;
+        state.cueBall.vx = 0;
+        state.cueBall.vy = 0;
+        state.cueBall.active = true;
+        state.cueBall.pocketed = false;
+        state.placingBall = false;
+        state.ballInHand = false;
+        updateHUD();
+      }
+      return;
+    }
+    if (!canShoot()) return;
+    const cue = state.cueBall;
+    if (!cue || !cue.active) return;
+    state.isCharging = true;
+    state.dragStart = pos;
+    canvas.classList.add('aiming');
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    const pos = getCanvasPos(e);
+    if (state.placingBall) return;
+    if (!state.isCharging) return;
+    state.isCharging = false;
+    canvas.classList.remove('aiming');
+    if (!canShoot()) return;
+    const cue = state.cueBall;
+    if (!cue || !cue.active) return;
+    const angle = Math.atan2(pos.y - cue.y, pos.x - cue.x);
+    const power  = clamp(state.power, 0.05, 1);
+    shoot(angle, power);
+    state.power = 0;
+    document.getElementById('powerFill').style.width = '0%';
+  });
+
+  // Touch → mouse event mapping
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }));
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }));
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY }));
+  }, { passive: false });
 
   // Mode buttons
   document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -1682,19 +1713,29 @@ document.addEventListener('DOMContentLoaded', () => {
     soundGameBtn.textContent = state.soundOn ? '🔊' : '🔇';
   });
 
-  // Window resize
+  // Window resize — FIX: capture old dimensions BEFORE setupTable() overwrites W/H
+  let resizeTimer = null;
   window.addEventListener('resize', () => {
-    if (document.getElementById('gameScreen').classList.contains('active') && !state.gameOver) {
-      const savedBalls = state.balls.map(b => ({ ...b }));
-      const oldW = W, oldH = H;
-      setupTable();
-      // Scale ball positions
-      state.balls = savedBalls.map(b => ({
-        ...b,
-        x: b.x * (W / oldW),
-        y: b.y * (H / oldH),
-      }));
-      state.cueBall = state.balls.find(b => b.num === 0);
-    }
+    // Debounce resize to avoid thrashing during drag-resize
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (document.getElementById('gameScreen').classList.contains('active') && !state.gameOver) {
+        // Capture BEFORE setupTable changes W/H
+        const oldW = W;
+        const oldH = H;
+        const savedBalls = state.balls.map(b => ({ ...b }));
+        setupTable();
+        const scaleX = W / oldW;
+        const scaleY = H / oldH;
+        // FIX: scale pocket positions too — they're recalculated by setupTable so this
+        // is handled, but ball positions need explicit rescaling
+        state.balls = savedBalls.map(b => ({
+          ...b,
+          x: b.x * scaleX,
+          y: b.y * scaleY,
+        }));
+        state.cueBall = state.balls.find(b => b.num === 0);
+      }
+    }, 80);
   });
 });

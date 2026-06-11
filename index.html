@@ -24,7 +24,7 @@
 
       <!-- Game Mode Selector -->
       <div class="mode-selector">
-        <div class="mode-label">SELECT GAME</div>
+        <div class="mode-label">Select Game Mode</div>
         <div class="mode-grid" id="modeGrid">
           <button class="mode-btn active" data-mode="eightball">
             <span class="mode-icon">8</span>
@@ -65,25 +65,30 @@
         </div>
       </div>
 
+      <!-- BUG FIX: ai-settings moved ABOVE menu-buttons so it renders inline with the flow
+           and doesn't need to show/hide awkwardly — it's always visible as a compact row -->
+      <div class="ai-settings">
+        <label for="aiDifficulty">AI Difficulty</label>
+        <div class="ai-select-wrap">
+          <select id="aiDifficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <span class="select-arrow">▾</span>
+        </div>
+      </div>
+
       <div class="menu-buttons">
         <button class="btn-primary" id="btn2Player">⚔ Two Players</button>
         <button class="btn-primary" id="btnVsAI">🤖 vs AI</button>
         <button class="btn-primary ghost" id="btnRules">📖 Rules &amp; Guide</button>
       </div>
 
-      <div class="ai-settings">
-        <label for="aiDifficulty">AI Difficulty:</label>
-        <select id="aiDifficulty">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </div>
-
-      <div class="sound-toggle-wrap">
+      <div class="start-bottom-row">
         <button class="btn-sound" id="soundToggle">🔊 Sound ON</button>
+        <div class="start-footer">Click &amp; drag to aim &nbsp;•&nbsp; Hold for power &nbsp;•&nbsp; Release to shoot</div>
       </div>
-      <div class="start-footer">Click &amp; drag to aim &nbsp;•&nbsp; Hold for power &nbsp;•&nbsp; Release to shoot</div>
     </div>
   </div>
 
@@ -153,9 +158,10 @@
   <!-- ═══════════════════════════════════════════════════════════
        RULES MODAL
   ═══════════════════════════════════════════════════════════════ -->
-  <div id="rulesModal" class="modal-overlay">
+  <!-- BUG FIX: modal-overlay moved outside all .screen divs to z-index 100 layer -->
+  <div id="rulesModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-card">
-      <button class="modal-close" id="rulesClose">✕</button>
+      <button class="modal-close" id="rulesClose" aria-label="Close rules">✕</button>
       <div class="modal-header">
         <div class="modal-title-icon" id="modalTitleIcon">8</div>
         <div>
@@ -163,10 +169,10 @@
           <p class="modal-sub" id="modalSub">Standard Rules</p>
         </div>
       </div>
-      <div class="modal-tabs">
-        <button class="tab-btn active" data-tab="rules">Rules</button>
-        <button class="tab-btn" data-tab="tips">Tips &amp; Strategy</button>
-        <button class="tab-btn" data-tab="fouls">Fouls</button>
+      <div class="modal-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="rules" role="tab">Rules</button>
+        <button class="tab-btn" data-tab="tips" role="tab">Tips &amp; Strategy</button>
+        <button class="tab-btn" data-tab="fouls" role="tab">Fouls</button>
       </div>
       <div class="modal-body" id="modalBody"></div>
     </div>
