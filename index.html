@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Midnight Billiards — Premium Pool</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Rajdhani:wght@300;400;600;700&family=Cinzel:wght@400;600;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       START SCREEN
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="startScreen" class="screen active">
+    <div class="start-bg"></div>
+    <div class="start-content">
+      <div class="logo-wrap">
+        <div class="ball-8-logo">8</div>
+        <h1 class="game-title">Midnight Billiards</h1>
+        <p class="game-subtitle">Premium Pool &amp; Snooker</p>
+      </div>
+
+      <!-- Game Mode Selector -->
+      <div class="mode-selector">
+        <div class="mode-label">SELECT GAME</div>
+        <div class="mode-grid" id="modeGrid">
+          <button class="mode-btn active" data-mode="eightball">
+            <span class="mode-icon">8</span>
+            <span class="mode-name">8-Ball</span>
+          </button>
+          <button class="mode-btn" data-mode="nineball">
+            <span class="mode-icon">9</span>
+            <span class="mode-name">9-Ball</span>
+          </button>
+          <button class="mode-btn" data-mode="tenball">
+            <span class="mode-icon">10</span>
+            <span class="mode-name">10-Ball</span>
+          </button>
+          <button class="mode-btn" data-mode="sevenball">
+            <span class="mode-icon">7</span>
+            <span class="mode-name">7-Ball</span>
+          </button>
+          <button class="mode-btn" data-mode="blackball">
+            <span class="mode-icon">●</span>
+            <span class="mode-name">Blackball</span>
+          </button>
+          <button class="mode-btn" data-mode="straightpool">
+            <span class="mode-icon">15</span>
+            <span class="mode-name">Straight Pool</span>
+          </button>
+          <button class="mode-btn" data-mode="onepocket">
+            <span class="mode-icon">◎</span>
+            <span class="mode-name">One Pocket</span>
+          </button>
+          <button class="mode-btn" data-mode="bankpool">
+            <span class="mode-icon">↗</span>
+            <span class="mode-name">Bank Pool</span>
+          </button>
+          <button class="mode-btn" data-mode="snooker">
+            <span class="mode-icon">S</span>
+            <span class="mode-name">Snooker</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-buttons">
+        <button class="btn-primary" id="btn2Player">⚔ Two Players</button>
+        <button class="btn-primary" id="btnVsAI">🤖 vs AI</button>
+        <button class="btn-primary ghost" id="btnRules">📖 Rules &amp; Guide</button>
+      </div>
+
+      <div class="ai-settings">
+        <label for="aiDifficulty">AI Difficulty:</label>
+        <select id="aiDifficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+
+      <div class="sound-toggle-wrap">
+        <button class="btn-sound" id="soundToggle">🔊 Sound ON</button>
+      </div>
+      <div class="start-footer">Click &amp; drag to aim &nbsp;•&nbsp; Hold for power &nbsp;•&nbsp; Release to shoot</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       GAME SCREEN
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="gameScreen" class="screen">
+    <div id="hud">
+      <div class="player-panel" id="p1Panel">
+        <div class="player-name">Player 1</div>
+        <div class="ball-type-label" id="p1Type">—</div>
+        <div class="ball-rack" id="p1Balls"></div>
+      </div>
+      <div class="center-hud">
+        <div class="mode-badge" id="modeBadge">8-Ball</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+        <div class="score-display" id="scoreDisplay"></div>
+        <div class="foul-msg" id="foulMsg"></div>
+      </div>
+      <div class="player-panel right" id="p2Panel">
+        <div class="player-name" id="p2Name">Player 2</div>
+        <div class="ball-type-label" id="p2Type">—</div>
+        <div class="ball-rack right" id="p2BallsRight"></div>
+      </div>
+    </div>
+
+    <div id="tableWrap">
+      <canvas id="poolCanvas"></canvas>
+      <div id="cueOverlay"></div>
+    </div>
+
+    <div id="powerMeterWrap">
+      <div class="power-label">POWER</div>
+      <div id="powerBar"><div id="powerFill"></div></div>
+    </div>
+
+    <!-- TIP PANEL -->
+    <div id="tipPanel">
+      <div class="tip-icon">💡</div>
+      <div class="tip-text" id="tipText">Take your time — aim before shooting.</div>
+    </div>
+
+    <div id="bottomBar">
+      <button class="btn-sm" id="btnMenu">Menu</button>
+      <div class="status-msg" id="statusMsg">Aim and shoot!</div>
+      <button class="btn-sm" id="btnRulesGame">Rules</button>
+      <button class="btn-sm" id="btnSoundGame">🔊</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       GAME OVER SCREEN
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="gameOverScreen" class="screen">
+    <div class="gameover-card">
+      <div class="trophy">🏆</div>
+      <h2 class="winner-text" id="winnerText">Player 1 Wins!</h2>
+      <p class="gameover-sub" id="gameOverSub">Pocketed the 8-ball correctly.</p>
+      <div class="gameover-score" id="gameOverScore"></div>
+      <div class="gameover-buttons">
+        <button class="btn-primary" id="btnPlayAgain">Play Again</button>
+        <button class="btn-primary ghost" id="btnMainMenu">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       RULES MODAL
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="rulesModal" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close" id="rulesClose">✕</button>
+      <div class="modal-header">
+        <div class="modal-title-icon" id="modalTitleIcon">8</div>
+        <div>
+          <h2 class="modal-title" id="modalTitle">8-Ball Pool</h2>
+          <p class="modal-sub" id="modalSub">Standard Rules</p>
+        </div>
+      </div>
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-tab="rules">Rules</button>
+        <button class="tab-btn" data-tab="tips">Tips &amp; Strategy</button>
+        <button class="tab-btn" data-tab="fouls">Fouls</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
